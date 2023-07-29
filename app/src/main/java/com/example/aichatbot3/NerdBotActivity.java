@@ -1,26 +1,9 @@
 // NerdBotActivity.java
 package com.example.aichatbot3;
 
-import com.android.volley.toolbox.JsonObjectRequest;
-
-import android.util.Log;
-
-import com.android.volley.Response;
-
-import java.util.Map;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import com.android.volley.VolleyError;
-
-import com.android.volley.Request;
-
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -28,8 +11,21 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.android.volley.Request;
 import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class NerdBotActivity extends AppCompatActivity {
 
@@ -37,6 +33,14 @@ public class NerdBotActivity extends AppCompatActivity {
     private EditText userInputEditText;
     private RequestQueue requestQueue;
     private final int MAX_TOKENS = 300;
+
+    // Rate limit handling variables
+    private static final int MAX_RETRY_COUNT = 3;
+    private int retryCount = 0;
+
+    // Debouncing variables
+    private static final long DEBOUNCE_DELAY = 1000; // 1 second
+    private boolean isButtonClickable = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,14 +67,26 @@ public class NerdBotActivity extends AppCompatActivity {
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Display user's input in the chatTextView
-                displayMessage("User: " + userInputEditText.getText().toString());
+                if (isButtonClickable) {
+                    // Disable the button for the debounce period
+                    isButtonClickable = false;
+                    new Handler().postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            // Re-enable the button after the debounce period
+                            isButtonClickable = true;
+                        }
+                    }, DEBOUNCE_DELAY);
 
-                // Process user's input and get a nerdy response from the chatbot
-                processUserMessage(userInputEditText.getText().toString());
+                    // Display user's input in the chatTextView
+                    displayMessage("User: " + userInputEditText.getText().toString());
 
-                // Clear the input field after processing
-                userInputEditText.setText("");
+                    // Process user's input and get a nerdy response from the chatbot
+                    processUserMessage(userInputEditText.getText().toString());
+
+                    // Clear the input field after processing
+                    userInputEditText.setText("");
+                }
             }
         });
     }
@@ -104,7 +120,7 @@ public class NerdBotActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        // Create the API request using Volley
+        // Create the API request with rate limit handling
         JsonObjectRequest request = new JsonObjectRequest(Request.Method.POST, "https://api.openai.com/v1/chat/completions", payload,
                 new Response.Listener<JSONObject>() {
                     @Override
@@ -128,7 +144,25 @@ public class NerdBotActivity extends AppCompatActivity {
                 new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        Log.e("Error", error.toString());
+                        // Handle rate limiting (429 error) with exponential backoff
+                        if (error.networkResponse != null && error.networkResponse.statusCode == 429) {
+                            if (retryCount < MAX_RETRY_COUNT) {
+                                // Retry after a delay using exponential backoff
+                                int backoffTime = (int) Math.pow(2, retryCount) * 1000;
+                                retryCount++;
+                                new Handler().postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        processUserMessage(userMessage);
+                                    }
+                                }, backoffTime);
+                            } else {
+                                displayMessage("NerdBot: Sorry, I'm a bit overwhelmed right now. Please try again later!");
+                                retryCount = 0;
+                            }
+                        } else {
+                            Log.e("Error", error.toString());
+                        }
                     }
                 }) {
             @Override
@@ -136,7 +170,7 @@ public class NerdBotActivity extends AppCompatActivity {
                 // Set the Authorization header with your API key
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Content-Type", "application/json");
-                headers.put("Authorization", "Bearer " + OPENAI_API_KEY);
+                headers.put("Authorization", "Bearer " + "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");
                 return headers;
             }
         };

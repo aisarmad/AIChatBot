@@ -10,29 +10,10 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.JsonObjectRequest;
-import com.android.volley.toolbox.Volley;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 public class MainActivity extends AppCompatActivity {
     private TextView chatTextView;
     private EditText userInputEditText;
     private Button sendButton;
-    private RequestQueue requestQueue;
-    private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String OPENAI_API_KEY = "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";
     private String selectedPersona;
 
     @Override
@@ -51,9 +32,6 @@ public class MainActivity extends AppCompatActivity {
             selectedPersona = intent.getStringExtra("persona");
         }
 
-        // Initialize the RequestQueue
-        requestQueue = Volley.newRequestQueue(this);
-
         // Set button click listener
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -64,8 +42,29 @@ public class MainActivity extends AppCompatActivity {
                 // Display the user's message in the chat view
                 displayMessage("User: " + userMessage);
 
-                // Process the user's message
-                processUserMessage(userMessage);
+                // Forward the user's input to the corresponding persona activity
+                if (selectedPersona != null) {
+                    if (selectedPersona.equals("NerdBot")) {
+                        Intent nerdBotIntent = new Intent(MainActivity.this, NerdBotActivity.class);
+                        nerdBotIntent.putExtra("userMessage", userMessage);
+                        startActivity(nerdBotIntent);
+                    } else if (selectedPersona.equals("CleverBot")) {
+                        // Create an intent to navigate to the CleverBotActivity
+                        Intent cleverBotIntent = new Intent(MainActivity.this, CleverBotActivity.class);
+                        cleverBotIntent.putExtra("userMessage", userMessage);
+                        startActivity(cleverBotIntent);
+                    } else if (selectedPersona.equals("DumbBot")) {
+                        // Create an intent to navigate to the DumbBotActivity
+                        Intent dumbBotIntent = new Intent(MainActivity.this, DumbBotActivity.class);
+                        dumbBotIntent.putExtra("userMessage", userMessage);
+                        startActivity(dumbBotIntent);
+                    } else if (selectedPersona.equals("ComedianBot")) {
+                        // Create an intent to navigate to the ComedianBotActivity
+                        Intent comedianBotIntent = new Intent(MainActivity.this, ComedianBotActivity.class);
+                        comedianBotIntent.putExtra("userMessage", userMessage);
+                        startActivity(comedianBotIntent);
+                    }
+                }
 
                 // Clear the input text field
                 userInputEditText.setText("");
@@ -76,61 +75,5 @@ public class MainActivity extends AppCompatActivity {
     // Display a message in the chat view
     private void displayMessage(String message) {
         chatTextView.append(message + "\n");
-    }
-
-    // Process the user's message using the OpenAI API
-    private void processUserMessage(final String userMessage) {
-        // Prepare the messages list
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> userMessageMap = new HashMap<>();
-        userMessageMap.put("role", "user");
-        userMessageMap.put("content", userMessage);
-        messages.add(userMessageMap);
-
-        // Prepare the request payload
-        JSONObject payload = new JSONObject();
-        try {
-            payload.put("model", "gpt-3.5-turbo");
-            payload.put("messages", new JSONArray(messages));
-            payload.put("temperature", 0.7);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-
-        // Create the API request
-        JsonObjectRequest request = new JsonObjectRequest(Request.Method.POST, OPENAI_API_URL, payload,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        try {
-                            JSONArray choices = response.getJSONArray("choices");
-                            if (choices.length() > 0) {
-                                JSONObject chatbotResponse = choices.getJSONObject(0).getJSONObject("message");
-                                String content = chatbotResponse.getString("content");
-                                displayMessage("Chatbot: " + content);
-                            }
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        error.printStackTrace();
-                    }
-                }) {
-            @Override
-            public Map<String, String> getHeaders() {
-                // Set the Authorization header with your API key
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Content-Type", "application/json");
-                headers.put("Authorization", "Bearer " + OPENAI_API_KEY);
-                return headers;
-            }
-        };
-
-        // Add the request to the RequestQueue
-        requestQueue.add(request);
     }
 }
